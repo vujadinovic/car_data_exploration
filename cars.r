@@ -30,6 +30,27 @@ carsData$totalSpeedNum <- as.numeric(str_extract(carsData$Total.Speed, "\\d+"))
 carsData$performance0to100Num <- as.numeric(str_extract(carsData$Performance.0...100..KM.H, "\\d+\\.?\\d*"))
 carsData$seatsNum <- as.numeric(str_extract(carsData$Seats, "\\d+"))
 carsData$torqueNum <- as.numeric(str_extract(carsData$Torque, "\\d+"))
+carsData$fuelsType <- as.factor(carsData$Fuel.Types)
+levels(carsData$fuelsType)
+# 23 levels are seen, mostly redundant
+# This column is used to classify cars as Fossil/Electric/Hybrid
+
+
+carsData <- carsData %>%
+  mutate(fuelGroup = case_when(
+    grepl("Hybrid|hyrbrid", Fuel.Types, ignore.case = TRUE) ~ "Hybrid",
+    grepl("Electric|EV|Battery", Fuel.Types, ignore.case = TRUE) ~ "Electric",
+    grepl("Petrol|Diesel|CNG", Fuel.Types, ignore.case = TRUE) ~ "Fossil",
+    TRUE ~ "Other" 
+  ))
+
+carsData$fuelGroup <- factor(carsData$fuelGroup, levels = c("Fossil", "Hybrid", "Electric", "Other"))
+
+table(carsData$fuelGroup)
+carsData[carsData$fuelGroup == "Other", c("Fuel.Types", "fuelGroup")]
+# As we have three hydrogen cars in dataset, we can drop them:
+carsData <- carsData[carsData$fuelGroup != "Other", ]
+
 
 # As we have Engines column, which is very messy, and from which, given that we have cylinder/battery capacity 
 # only thing that we can possibly extract is number of cylinders and engine configuration. That is linked to cylinder capacity
@@ -40,11 +61,7 @@ carsData$torqueNum <- as.numeric(str_extract(carsData$Torque, "\\d+"))
 
 carsData$ccBatteryNum <- as.numeric(str_extract(carsData$CC.Battery.Capacity, "\\d+\\.?\\d*"))
 
-carsData$cylinderCapacityNum <- ifelse(!is.na(carsData$ccBatteryNum) & carsData$ccBatteryNum > 800,
-                                       carsData$ccBatteryNum, NA)
 
-carsData$batteryCapacityNum <- ifelse(!is.na(carsData$ccBatteryNum) & carsData$ccBatteryNum <= 800,
-                                      carsData$ccBatteryNum, NA)
 # The only problem noticed with this is that there are some hybrid vehicles that regex badly extracts data out of
 # in the sense that it reads battery power (that is a small percent of hybrid engine's capacity) as whole capacity.
 # It remains to be solved.
@@ -106,36 +123,48 @@ testData$brandTargetEnc[is.na(testData$brandTargetEnc)] <- globalMean
 onlyBrandNameData <- trainData[, c("brandTargetEnc", "carsPricesNum")]
 
 
-firstModel <- lm(onlyBrandNameData$carsPricesNum ~ ., data = onlyBrandNameData)
-summary(firstModel)
+brandNameModel <- lm(onlyBrandNameData$carsPricesNum ~ ., data = onlyBrandNameData)
+summary(brandNameModel)
 # As we can see, we have a strong reason to consider car brand as a predictor for this data
 
 
 # Let's see other columns now:
 
-secondModelData <- trainData[, c("brandTargetEnc", "carsPricesNum", "horsePowerNum", "totalSpeedNum",
-                                 "performance0to100Num", "seatsNum", "torqueNum")]
-secondModelData <- na.omit(secondModelData)
-secondModel <- lm(secondModelData$carsPricesNum ~ ., data = secondModelData)
-summary(secondModel)
+fullModelData <- trainData[, c("brandTargetEnc", "carsPricesNum", "horsePowerNum", "totalSpeedNum",
+                                 "performance0to100Num", "seatsNum", "torqueNum", "ccBatteryNum", "fuelGroup")]
+fullModelData <- na.omit(fullModelData)
+fullModel <- lm(fullModelData$carsPricesNum ~ ., data = fullModelData)
+summary(fullModel)
 # Interesting, other than brand name, none of the predictors have low p values
 # How about we remove brand name:
-thirdModel <- lm(secondModelData$carsPricesNum ~ .-brandTargetEnc, data = secondModelData)
+thirdModel <- lm(fullModelData$carsPricesNum ~ .-brandTargetEnc, data = fullModelData)
 summary(thirdModel)
-
-
-# Now we see that horsepower, total speed and performance 0 to 100 have small p values
-# And that our R^2 dropped from 0.6 to 0.3, so we are explaining less variability without brand name data
+# Now we see that horsepower, total speed, performance 0 to 100, torque number have small p values
+# And that our R^2 dropped from 0.7 to 0.52, so we are explaining less variability without brand name data
 
 # Let's try some interactions 
-fourthModel <- lm(secondModelData$carsPricesNum ~ . + brandTargetEnc*seatsNum, data = secondModelData)
+brandSeatsIntModel <- lm(fullModelData$carsPricesNum ~ . + brandTargetEnc*seatsNum, data = fullModelData)
 # This particular interaction was tried because some car manufacturers, have normal passenger vehicles with usually 4/5 doors,
 # and at the same time other sporty vehicles, pricier, that are characterized by 2/3 door (as in 2 door coupe).
-summary(fourthModel)
-# Significantly low p value for this is seen.
+summary(brandSeatsIntModel)
+# Significantly low p value for this interaction is seen.
+
+# Now we can "filter" whether ccBatteryNum is for electric, hybrid or standard car by considering the following interaction:
+powerFuelIntModel <- lm(fullModelData$carsPricesNum ~ . + fuelGroup*ccBatteryNum, data = fullModelData)
+summary(powerFuelIntModel)
+# Interaction columns show no statistical significance.
+# It remains to be checked
 
 
 
+
+
+
+
+
+
+#-----------OUTLIERS-------------------------
+#-------------TO BE DONE---------------------
 
 residuals <- resid(thirdModel)
 fittedValues <- fitted(thirdModel)
@@ -167,12 +196,12 @@ abline(h = c(-2, 2), col = "darkgreen", lty = 2)
 
 # Let's check what are outliers:
 studentizedResiduals <- rstudent(thirdModel)
-secondModelData$studentizedResiduals <- studentizedResiduals
-outliers3 <- secondModelData[abs(studentizedResiduals) > 3, ]   
+fullModelData$studentizedResiduals <- studentizedResiduals
+outliers3 <- fullModelData[abs(studentizedResiduals) > 3, ]   
 
-studentizedResiduals <- rstudent(secondModel)
-secondModelData$studentizedResiduals <- studentizedResiduals
-outliers2 <- secondModelData[abs(studentizedResiduals) > 3, ]   
+studentizedResiduals <- rstudent(fullModel)
+fullModelData$studentizedResiduals <- studentizedResiduals
+outliers2 <- fullModelData[abs(studentizedResiduals) > 3, ]   
 # As expected, 4 out of 5 outliers are very expensive, multi-million-dollar cars 
 # However, we can see that, one remaining outlier is Nissan's van, that actually costs 28000$, for which
 # studentized residual is around -8, which means that we predicted much bigger value for that vehicle than 
@@ -184,7 +213,4 @@ outliers2 <- secondModelData[abs(studentizedResiduals) > 3, ]
 
 
 
-# Model that uses all of the available predictors:
-wholeModelData <- trainData[, c("brandTargetEnc", "carsPricesNum", "horsePowerNum", "totalSpeedNum",
-                                "performance0to100Num", "seatsNum", "torqueNum", "cylinderCapacityNum", "batteryCapacityNum")]
-wholeModel <-lm(wholeModelData$carsPricesNum ~ ., data = wholeModelData)
+
