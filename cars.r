@@ -135,28 +135,55 @@ fullModelData <- trainData[, c("brandTargetEnc", "carsPricesNum", "horsePowerNum
 fullModelData <- na.omit(fullModelData)
 fullModel <- lm(fullModelData$carsPricesNum ~ ., data = fullModelData)
 summary(fullModel)
-# Interesting, other than brand name, none of the predictors have low p values
+# Interesting, brand name has the lowest p value, as expected
+crPlots(fullModel) 
+# performance0to100Num looks like a log curve:
+fullModel2 <- lm(fullModelData$carsPricesNum ~ . -performance0to100Num + log(performance0to100Num), data = fullModelData)
+summary(fullModel2)
+# Lower p value for logarithm of performance0to100Num
+crPlots(fullModel2)
+# Now brandTargetEnc looks like an exponential:
+fullModel3 <- lm(fullModelData$carsPricesNum ~ . -performance0to100Num + log(performance0to100Num) -brandTargetEnc 
+                +log(brandTargetEnc), data = fullModelData)
+summary(fullModel3)
+# R^2 significantly dropped, p value for log of brandTargetEnc increased, bail
+crPlots(fullModel3)
+
+# Let's fix even the totalSpeedNum:
+fullModel4 <- lm(fullModelData$carsPricesNum ~ . -performance0to100Num + log(performance0to100Num)
+                 -totalSpeedNum + log(totalSpeedNum), data = fullModelData)
+summary(fullModel4)
+crPlots(fullModel4)
+
+# After checking vif, all of those introduced multicollinearity to some extent, without significantly improving the model.
+# Full model is better as it is simpler.
+
+
 # How about we remove brand name:
 thirdModel <- lm(fullModelData$carsPricesNum ~ .-brandTargetEnc, data = fullModelData)
 summary(thirdModel)
 # Now we see that horsepower, total speed, performance 0 to 100, torque number have small p values
-# And that our R^2 dropped from 0.7 to 0.52, so we are explaining less variability without brand name data
+# And that our R^2 dropped from 0.7 to 0.52, so we are explaining much less variability without brand name data
 
 # Let's try some interactions 
 brandSeatsIntModel <- lm(fullModelData$carsPricesNum ~ . + brandTargetEnc*seatsNum, data = fullModelData)
 # This particular interaction was tried because some car manufacturers, have normal passenger vehicles with usually 4/5 doors,
 # and at the same time other sporty vehicles, pricier, that are characterized by 2/3 door (as in 2 door coupe).
 summary(brandSeatsIntModel)
-# Significantly low p value for this interaction is seen.
+# Significantly low p value for this interaction is seen, no significant changes in R^2 compared to full model.
 
 # Now we can "filter" whether ccBatteryNum is for electric, hybrid or standard car by considering the following interaction:
 powerFuelIntModel <- lm(fullModelData$carsPricesNum ~ . + fuelGroup*ccBatteryNum, data = fullModelData)
 summary(powerFuelIntModel)
 # Interaction columns show no statistical significance.
-# It remains to be checked
+# Other than that fact 
 
-
-
+# Consider even the following model:
+combinedIntModel <- lm(fullModelData$carsPricesNum ~ . + fuelGroup*ccBatteryNum 
+                       + brandTargetEnc*seatsNum , data = fullModelData)
+summary(combinedIntModel)
+# Let's backward select from here:
+# BACKWARD SELECTION HERE
 
 
 
