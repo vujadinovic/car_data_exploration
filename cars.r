@@ -183,10 +183,34 @@ combinedIntModel <- lm(fullModelData$carsPricesNum ~ . + fuelGroup*ccBatteryNum
                        + brandTargetEnc*seatsNum , data = fullModelData)
 summary(combinedIntModel)
 # Let's backward select from here:
-# BACKWARD SELECTION HERE
 
+# Highest p value is for ccBatteryNum:
+combinedIntModel1 <- lm(fullModelData$carsPricesNum ~ . + fuelGroup*ccBatteryNum 
+                       + brandTargetEnc*seatsNum -ccBatteryNum, data = fullModelData)
+summary(combinedIntModel1)
+# Now it is ccBatteryNum:fuelGroupFossil term, so we will remove all the interaction terms:
+combinedIntModel2 <- lm(fullModelData$carsPricesNum ~ .  
+                        + brandTargetEnc*seatsNum -ccBatteryNum, data = fullModelData)
+summary(combinedIntModel2)
+# fuelGroupHybrid
+combinedIntModel3 <- lm(fullModelData$carsPricesNum ~ .  -fuelGroup
+                        + brandTargetEnc*seatsNum -ccBatteryNum, data = fullModelData)
+summary(combinedIntModel3)
+# seatsNum
+combinedIntModel4 <- lm(fullModelData$carsPricesNum ~ .  -fuelGroup 
+                        + brandTargetEnc*seatsNum -ccBatteryNum -seatsNum, data = fullModelData)
+summary(combinedIntModel4)
+# totalSpeednum
+combinedIntModel5 <- lm(fullModelData$carsPricesNum ~ .  -fuelGroup -totalSpeedNum
+                        + brandTargetEnc*seatsNum -ccBatteryNum -seatsNum, data = fullModelData)
+summary(combinedIntModel5)
 
+# Now, we call anova to see if our elimination was warranted:
+anova(combinedIntModel5, combinedIntModel)
+# It was.
 
+#-----------Heteroscedasticity-------------
+#--------------TO BE DONE----------------
 
 
 
