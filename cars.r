@@ -1,10 +1,13 @@
 install.packages("dplyr")
 install.packages("car")
+
 library(dplyr)
 library(ggplot2)
 library(stringr)
 library(caret) 
 library(car)
+library(nnet)
+library(Metrics)
 
 carsData <- read.csv("cars.csv")
 View(carsData)
@@ -209,6 +212,16 @@ summary(combinedIntModel5)
 anova(combinedIntModel5, combinedIntModel)
 # It was.
 
+
+# Let's try a KNN:
+trainData <- na.omit(trainData)
+testData <- na.omit(testData)
+neuralNetworkModel <- nnet(carsPricesNum ~ -fuelGroup -totalSpeedNum
+                           + brandTargetEnc*seatsNum -ccBatteryNum -seatsNum, data = fullModelData, size = 3, maxit = 200)
+
+nNpred <- predict(neuralNetworkModel, fullModelData)
+mae <-  mae(nNpred, fullModelData$carsPricesNum)
+# 152633, too much, remains to be seen
 #-----------Heteroscedasticity-------------
 #--------------TO BE DONE----------------
 
